@@ -35,7 +35,7 @@ reset_timer	macro	    ; lo que anteriormente fue subrutina, se hizo macro
     banksel	PORTA	    ; nos aseguramos que es el PortA
     movlw	81	    ; dada la configuración del prescaler
     movwf	TMR0	    ; se guarda en timer0
-    bsf		T0IF	    ; bandera cuando no hay overflow
+    bcf		T0IF	    ; bandera cuando no hay overflow
     endm     
 
 PSECT udata_bank0	    ; 
@@ -65,8 +65,7 @@ isr:
     call	interruption_tm0    ; se llama a la interrupción
     btfsc	RBIF		    ; se evalua si se hizo la interrupción  
     call	interruption_oc	    ; 
-    call	suma_portd
-    
+        
 pop:
     swapf	STATUS_TEMP, W	    ; se da vuelta a variable anterior
     movwf	STATUS		    ; se almacena en status
@@ -78,51 +77,75 @@ pop:
 interruption_tm0:
     reset_timer		; solo de 50ms
     incf	cont
-    bcf		T0IF	; bajar bandera para que salg de la interrupcion
+    ;bsf		T0IF	; bajar bandera para que salg de la interrupcion
     return
 
 interruption_oc:
     banksel	PORTB	;
     btfss	PORTB, 0
     incf	PORTA
+    movlw	00111111B	; valor inicial del 7 segmentos
+    movwf	PORTC
+    call	suma_portc
+   
+    movf	PORTC
     btfss	PORTB, 7
     decf	PORTA
+    movf	PORTC
+    call	resta_portc
+      
     bcf		RBIF
     return
 
 suma_portd:
-    reset_timer		; solo de 50ms
-    incf	cont
     movf	cont, W
-    sublw	128
+    sublw	20
     btfss	STATUS, 2
     goto	return_timer0
     clrf	cont
     incf	PORTD
-    bsf		T0IF
+    ;usar otra variable para incrementar
+    ;bsf		T0IF
 return_timer0:
+    return
+
+suma_portc:
+    movlw	00001111B	    ; se pone limite
+    andwf	cont, F	    ; pone limite de los bits y almacena en F
+    movf	cont, W	    ; se almacena en W
+    call	tabla	    ; se toma el valor dentro de tabla
+    movwf	PORTC	    ; valor que tenga tabla se manda a PortC
+    return
+    
+resta_portc:
+    decf	cont	    ; 
+    movlw	00001111B   ; se pone limite
+    andwf	cont, F	    ; pone limite de los bits
+    movf	cont, W
+    call	tabla
+    movwf	PORTC
     return
 ;---------------------- configuración de programa -----------------------------
 PSECT code, delta=2, abs    ; se ubica el cÃ³digo de 2 bytes
 ORG 100h    
 
  tabla:
-    clrf    PCLATH	    ; asegurarase de estar en seccion
+    clrf    PCLATH	    ; asegurarase de estar en secciÃ³n
     bsf	    PCLATH, 0 	    ; 
-    andlw   0fh		    ; se eliminan los 4 MSB y se dejan los 4 LSB
+    andlw   0x0f	    ; se eliminan los 4 MSB y se dejan los 4 LSB
     addwf   PCL, F	    ; se guarda en F
-    retlw   0x3F	    ; 0
-    retlw   0x06	    ; 1
-    retlw   0x5B	    ; 2
-    retlw   0x4F	    ; 3
-    retlw   0x66	    ; 4
-    retlw   0x6D	    ; 5 
-    retlw   0x7D	    ; 6
-    retlw   0x07	    ; 7
-    retlw   0x7F	    ; 8
-    retlw   0x6F	    ; 9
+    retlw   00111111B	    ; 0
+    retlw   00000110B	    ; 1
+    retlw   01011011B	    ; 2
+    retlw   01001111B	    ; 3
+    retlw   01100110B	    ; 4
+    retlw   01101101B	    ; 5 
+    retlw   01111101B	    ; 6
+    retlw   00000111B	    ; 7
+    retlw   01111111B	    ; 8
+    retlw   01101111B	    ; 9
     retlw   01110111B	    ; A
-    retlw   01111111B	    ; B
+    retlw   01111100B	    ; B
     retlw   00111001B	    ; C
     retlw   01011110B	    ; D
     retlw   01111001B	    ; E
@@ -137,7 +160,7 @@ main:
           
 ;-------------------- loop principal de programa ------------------------------
 loop:
-    ; de momento no hay loops
+    call	suma_portd ; de momento no hay loops
     goto	loop
         
 ;-------------------- subrutinas de programa ----------------------------------
@@ -169,18 +192,18 @@ io_config:
     
 reloj_config:
     banksel	OSCCON
-    bcf		IRCF2	    ; set, configuraciÃ³n de frecuencia a 4MkHz (110)
-    bcf		IRCF1	    ; set, configuraciÃ³n de frecuencia a 4MHz (110)
-    bsf		IRCF0	    ; clear, configuraciÃ³n de frecuencia a 4MHz (110)
+    bsf		IRCF2	    ; set, configuraciÃ³n de frecuencia a 4MkHz (110)
+    bsf		IRCF1	    ; set, configuraciÃ³n de frecuencia a 4MHz (110)
+    bcf		IRCF0	    ; clear, configuraciÃ³n de frecuencia a 4MHz (110)
     return
 
 timer_config:
     banksel	TRISC	    ; asegurarse de estar en el banco
     bcf		T0CS	    ; Internal instruction cycle clock = 0
     bcf		PSA	    ; estos PS son el preescaler
-    bsf		PS2	    ; prescaler 001
-    bsf		PS1	    ; prescaler 001
-    bsf		PS0	    ; prescaler 00  1 
+    bsf		PS2	    ; prescaler 111
+    bsf		PS1	    ; prescaler 111
+    bsf		PS0	    ; prescaler 111 
     reset_timer		    ; se reinicia el contador
     return
          
