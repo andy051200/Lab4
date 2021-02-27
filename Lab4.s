@@ -75,15 +75,15 @@ pop:
 ;-------------------------- subrutinas de interrupción ------------------------
 interruption_timer0:
     reset_timer		; solo de 50ms
-    incf	cont2
+    incf	cont1
     btfss	STATUS, 2
-    incf	cont2, F
-    movf	cont2, W
+    incf	cont1, F
+    movf	cont1, W
     sublw	40
     movlw	00001111B   ; se pone limite
    
-    andwf	cont2, F	    ; pone limite de los bits y almacena en F
-    movf	cont2, W	    ; se almacena en W
+    andwf	cont1, F	    ; pone limite de los bits y almacena en F
+    movf	cont1, W	    ; se almacena en W
     call	tabla	    ; se toma el valor dentro de tabla
     movwf	PORTD
     return
