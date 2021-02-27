@@ -33,16 +33,15 @@ CONFIG WRT = OFF	    ;apagado de auto escritura de cÃƒÂ³digo
 ;---------------------- configuración de macros -------------------------------   
 reset_timer	macro	    ; lo que anteriormente fue subrutina, se hizo macro
     banksel	PORTA	    ; nos aseguramos que es el PortA
-    movlw	81	    ; dada la configuración del prescaler
+    movlw	256	    ; dada la configuración del prescaler
     movwf	TMR0	    ; se guarda en timer0
-    bcf		T0IF	    ; bandera cuando no hay overflow
+    bsf		T0IF	    ; bandera cuando no hay overflow
     endm     
-
-PSECT udata_bank0	    ; 
-    cont:	DS 1 ; variable de contador 2 byte
-    segmentos:	DS 1
-
+    
 PSECT udata_shr	    ; variable en memoria común
+    cont1:	    DS 1 ; variable de contador PortD
+    cont2:	    DS 2 ; variable de contador Port
+    cont3:	    DS 1 ;
     W_TEMP:	    DS 1 ; variable 
     STATUS_TEMP:    DS 1 ; variable    
     
@@ -62,9 +61,9 @@ push:
     
 isr:
     btfsc	T0IF		    ; se evalua si se hizo la interrupción
-    call	interruption_tm0    ; se llama a la interrupción
+    call	interruption_timer0    ; se llama a la interrupción
     btfsc	RBIF		    ; se evalua si se hizo la interrupción  
-    call	interruption_oc	    ; 
+    call	interruption_onchange	    ; 
         
 pop:
     swapf	STATUS_TEMP, W	    ; se da vuelta a variable anterior
@@ -74,57 +73,50 @@ pop:
     retfie	
      
 ;-------------------------- subrutinas de interrupción ------------------------
-interruption_tm0:
+interruption_timer0:
     reset_timer		; solo de 50ms
-    incf	cont
-    ;bsf		T0IF	; bajar bandera para que salg de la interrupcion
-    return
-
-interruption_oc:
-    banksel	PORTB	;
-    btfss	PORTB, 0
-    incf	PORTA
-    movlw	00111111B	; valor inicial del 7 segmentos
-    movwf	PORTC
-    call	suma_portc
-   
-    movf	PORTC
-    btfss	PORTB, 7
-    decf	PORTA
-    movf	PORTC
-    call	resta_portc
-      
-    bcf		RBIF
-    return
-
-suma_portd:
-    movf	cont, W
-    sublw	20
+    incf	cont2
     btfss	STATUS, 2
-    goto	return_timer0
-    clrf	cont
-    incf	PORTD
-    ;usar otra variable para incrementar
-    ;bsf		T0IF
-return_timer0:
+    incf	cont2, F
+    movf	cont2, W
+    sublw	40
+    movlw	00001111B   ; se pone limite
+   
+    andwf	cont2, F	    ; pone limite de los bits y almacena en F
+    movf	cont2, W	    ; se almacena en W
+    call	tabla	    ; se toma el valor dentro de tabla
+    movwf	PORTD
+    return
+
+interruption_onchange:
+    banksel	PORTB	    ; selección de banco
+    btfss	PORTB, 0    ; se ve si está en 1 el RB0
+    call	suma_portc  ; se llama rutina de suma
+    
+    btfss	PORTB, 7    ; se ve si está en 1 el RB7
+    call	resta_portc ; se llama rutina de resta
+      
+    bcf		RBIF	    ; se apaga bandera, estaba en bcf
     return
 
 suma_portc:
-    movlw	00001111B	    ; se pone limite
-    andwf	cont, F	    ; pone limite de los bits y almacena en F
-    movf	cont, W	    ; se almacena en W
-    call	tabla	    ; se toma el valor dentro de tabla
-    movwf	PORTC	    ; valor que tenga tabla se manda a PortC
-    return
-    
-resta_portc:
-    decf	cont	    ; 
-    movlw	00001111B   ; se pone limite
-    andwf	cont, F	    ; pone limite de los bits
-    movf	cont, W
+    incf	PORTA
+    movlw	00001111B	; se pone limite a contador
+    incf	cont3, F	; andwf	PORTA, F	; pone limite de los bits 
+    movf	cont3, W
     call	tabla
     movwf	PORTC
     return
+       
+resta_portc:
+    decf	PORTA
+    movlw	00001111B	; se pone limite a contador
+    decf	cont3, F	; andwf	PORTA, F	; pone limite de los bits 
+    movf	cont3, W
+    call	tabla
+    movwf	PORTC
+    return
+    
 ;---------------------- configuración de programa -----------------------------
 PSECT code, delta=2, abs    ; se ubica el cÃ³digo de 2 bytes
 ORG 100h    
@@ -157,10 +149,13 @@ main:
     call	timer_config	; rutina de configuración de relok
     call	interruption_config	; rutina de configuración de interrumpciones
     banksel	PORTA
-          
+    movlw	00111111B	; valor inicial del 7 segmentos
+    movwf	PORTC
+    
+    
 ;-------------------- loop principal de programa ------------------------------
 loop:
-    call	suma_portd ; de momento no hay loops
+    ;de momento no hay loops
     goto	loop
         
 ;-------------------- subrutinas de programa ----------------------------------
@@ -214,5 +209,5 @@ interruption_config:
     bsf		RBIE
     bcf		RBIF
     return   
-    
+
 END      
